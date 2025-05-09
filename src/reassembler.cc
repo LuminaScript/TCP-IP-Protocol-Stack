@@ -1,84 +1,76 @@
 #include "reassembler.hh"
 #include "debug.hh"
-
+#include <iostream>
 using namespace std;
-/*
-1. Bytes that are the next bytes in the stream. The Reassembler should push these to
- the stream (output
- .writer()) as soon as they are known.
- 2. Bytes that fit within the stream’s available capacity but can’t yet be written, because
- earlier bytes remain unknown. These should be stored internally in the Reassembler.
- 3. Bytes that lie beyond the stream’s available capacity. These should be discarded. The
- Reassembler’s will not store any bytes that can’t be pushed to the ByteStream either
- immediately, or as soon as earlier bytes become known.
-*/
-void Reassembler::insert(uint64_t first_index, string data, bool is_last_substring)
+ 
+void Reassembler::insert( uint64_t first_index, string data, bool is_last_substring )
 {
-  // Handle end-of-stream marker case
-  if (data.empty() && is_last_substring) {
-    if (first_index <= next_byte_idx) {
-      output_.writer().close();
-    } else {
-      last = true;
-      last_idx_ = first_index - 1;
-    }
+  if ( data.empty() && is_last_substring && first_index == next_byte_index() ) {
+    get_writer().close();
     return;
   }
+ 
+  if ( is_last_substring ) {
+    last_byte_ = first_index + data.length() - 1;
+   }
+ 
+   // At least one byte of data is available to insert
+   if ( first_index < next_byte_index() + available_capacity() && first_index + data.length() > next_byte_index() ) {
+     uint64_t insert_key = ( first_index >= next_byte_index() ) ? first_index : next_byte_index();
+ 
+     unassembled_substrings_.insert(
+       make_pair( insert_key,
+                  data.substr( insert_key - first_index,
+                               min( data.length(), next_byte_index() + available_capacity() - insert_key ) ) ) );
+     merge_substrings();
+     if ( unassembled_substrings_.begin()->first == next_byte_index() ) {
+       get_writer().push( unassembled_substrings_.begin()->second );
+       if ( unassembled_substrings_.begin()->first + unassembled_substrings_.begin()->second.length() - 1
+            == last_byte_ ) {
+         get_writer().close();
+       }
+       unassembled_substrings_.erase( unassembled_substrings_.begin() );
+     }
+   }
+ }
+ 
+ // How many bytes are stored in the Reassembler itself?
+ // This function is for testing only; don't add extra state to support it.
+ uint64_t Reassembler::count_bytes_pending() const
+ {
 
-  // Mark last substring if needed
-  if (is_last_substring) {
-    last = true;
-    last_idx_ = first_index + data.size() - 1;
-  }
-
-  // Store bytes that are within capacity
-  uint64_t capacity = output_.writer().available_capacity();
-  
-  // Skip if completely out of window
-  if (first_index >= next_byte_idx + capacity) {
-    return;
-  }
-  
-  // Process only bytes we haven't seen yet and that fit within capacity
-  for (size_t i = 0; i < data.size(); i++) {
-    uint64_t abs_index = first_index + i;
-    
-    // Skip bytes that are already assembled
-    if (abs_index < next_byte_idx) {
-      continue;
-    }
-    
-    // Skip bytes beyond our capacity
-    if (abs_index >= next_byte_idx + capacity) {
-      break;
-    }
-    
-    // Add to buffer if not already there
-    if (buf_.find(abs_index) == buf_.end()) {
-      buf_[abs_index] = data[i];
-      pending_bytes_++;
-    }
-  }
-  
-  // Write contiguous bytes to output
-  while (buf_.find(next_byte_idx) != buf_.end()) {
-    string byte_to_write(buf_[next_byte_idx]);
-    output_.writer().push(byte_to_write);
-    buf_.erase(next_byte_idx);
-    pending_bytes_--;
-    next_byte_idx++;
-  }
-  
-  // Close the stream if we've written all bytes up to last_idx_
-  if (last && next_byte_idx > last_idx_) {
-    output_.writer().close();
-  }
-}
-
-// How many bytes are stored in the Reassembler itself?
-// This function is for testing only; don't add extra state to support it.
-uint64_t Reassembler::count_bytes_pending() const
-{
-  // debug( "unimplemented count_bytes_pending() called" );
-  return pending_bytes_;
-}
+ 
+   uint64_t count = 0;
+   for ( auto it = unassembled_substrings_.begin(); it != unassembled_substrings_.end(); ++it ) {
+     count += it->second.length();
+   }
+   return count;
+ }
+ 
+ void Reassembler::merge_substrings()
+ {
+   if ( unassembled_substrings_.size() <= 1 )
+     return;
+ 
+   auto it = unassembled_substrings_.begin();
+   auto next = std::next( it );
+ 
+   while ( next != unassembled_substrings_.end() ) {
+     // Overlap or adjacent substrings can be merged
+     if ( it->first + it->second.length() >= next->first ) {
+       // If next is completely contained in it, erase next directly
+       if ( it->first + it->second.length() >= next->first + next->second.length() ) {
+         next = unassembled_substrings_.erase( next );
+         continue;
+       }
+ 
+       // Otherwise, merge the overlap
+       uint64_t overlap_index = it->first + it->second.length() - next->first;
+       it->second += next->second.substr( overlap_index );
+       next = unassembled_substrings_.erase( next );
+     } else {
+       ++it;
+       ++next;
+     }
+   }
+ }
