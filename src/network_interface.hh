@@ -4,9 +4,10 @@
 #include "ethernet_frame.hh"
 #include "ipv4_datagram.hh"
 
+#include <chrono>
 #include <memory>
 #include <queue>
-
+#include <unordered_map>
 // A "network interface" that connects IP (the internet layer, or network layer)
 // with Ethernet (the network access layer, or link layer).
 
@@ -28,6 +29,14 @@
 // the network interface passes it up the stack. If it's an ARP
 // request or reply, the network interface processes the frame
 // and learns or replies as necessary.
+
+// ARP table: maps IP addresses to Ethernet addresses and timestamps
+struct ARPEntry
+{
+  EthernetAddress ethernet_addr {};
+  size_t time_elapsed {}; // Timestamp when the entry was last updated
+};
+
 class NetworkInterface
 {
 public:
@@ -82,4 +91,13 @@ private:
 
   // Datagrams that have been received
   std::queue<InternetDatagram> datagrams_received_ {};
+
+  // Maps IP addresses to Ethernet addresses and timestamps
+  std::unordered_map<uint32_t, ARPEntry> arp_table_ {};
+
+  // Queue datagrams waiting for ARP resolution
+  std::unordered_map<uint32_t, std::queue<InternetDatagram>> pending_datagrams_ {};
+
+  // Track pending ARP requests to avoid flooding
+  std::unordered_map<uint32_t, size_t> pending_arp_requests_ {};
 };
