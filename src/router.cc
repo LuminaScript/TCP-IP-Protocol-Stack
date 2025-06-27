@@ -38,5 +38,87 @@ void Router::add_route( const uint32_t route_prefix,
 // Go through all the interfaces, and route every incoming datagram to its proper outgoing interface.
 void Router::route()
 {
-  debug( "unimplemented route() called" );
+  // Process datagrams from all interfaces
+  for (auto& interface : interfaces_) {
+    auto& datagrams_queue = interface->datagrams_received();
+    
+    // Process all datagrams in the queue
+    while (!datagrams_queue.empty()) {
+      InternetDatagram dgram = std::move(datagrams_queue.front());
+      datagrams_queue.pop();
+      
+      // Check and decrement TTL
+      if (dgram.header.ttl <= 1) {
+        // TTL is 0 or will become 0 after decrement - drop the datagram
+        cerr << "DEBUG: Dropping datagram due to TTL expiry" << endl;
+        continue;
+      }
+      
+      // Decrement TTL
+      dgram.header.ttl--;
+      
+      // Find the longest-prefix match route
+      const RouteEntry* best_route = nullptr;
+      uint8_t longest_prefix = 0;
+      uint32_t dest_ip = dgram.header.dst;
+      
+      for (const auto& route : routing_table_) {
+        // Check if this route matches the destination
+        if (matches_route(dest_ip, route.route_prefix, route.prefix_length)) {
+          // Check if this is a longer prefix match
+          if (route.prefix_length >= longest_prefix) {
+            longest_prefix = route.prefix_length;
+            best_route = &route;
+          }
+        }
+      }
+      
+      // If no route found, drop the datagram
+      if (best_route == nullptr) {
+        cerr << "DEBUG: No route found for destination " 
+             << Address::from_ipv4_numeric(dest_ip).ip() << ", dropping datagram" << endl;
+        continue;
+      }
+      
+      // Determine the next hop address
+      optional<Address> next_hop_addr;
+      if (best_route->next_hop.has_value()) {
+        // Use the specified next hop (gateway)
+        next_hop_addr = best_route->next_hop;
+      } else {
+        // Direct delivery - use the datagram's destination as next hop
+        next_hop_addr = Address::from_ipv4_numeric(dest_ip);
+      }
+      
+      // Send the datagram through the appropriate interface
+      try {
+        interfaces_[best_route->interface_num]->send_datagram(dgram, next_hop_addr.value());
+        cerr << "DEBUG: Routed datagram to " << next_hop_addr.value().ip()
+             << " via interface " << best_route->interface_num << endl;
+      } catch (const exception& e) {
+        cerr << "DEBUG: Failed to send datagram: " << e.what() << endl;
+      }
+    }
+  }
+}
+
+// Helper function to check if a destination IP matches a route prefix
+bool Router::matches_route(uint32_t dest_ip, uint32_t route_prefix, uint8_t prefix_length)
+{
+  // Handle the special case of prefix_length = 0 (default route)
+  if (prefix_length == 0) {
+    return true;
+  }
+  
+  // Handle the case where prefix_length = 32 (exact match)
+  if (prefix_length == 32) {
+    return dest_ip == route_prefix;
+  }
+  
+  // Create a mask with the first prefix_length bits set to 1
+  // Avoid undefined behavior when shifting by 32
+  uint32_t mask = ~((1ULL << (32 - prefix_length)) - 1);
+  
+  // Apply the mask and compare
+  return (dest_ip & mask) == (route_prefix & mask);
 }

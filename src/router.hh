@@ -41,9 +41,11 @@ public:
 
 private:
 
-  
+  // Helper function to check if a destination IP matches a route prefix
+  bool matches_route(uint32_t dest_ip, uint32_t route_prefix, uint8_t prefix_length);
   // Routing table
   std::vector<RouteEntry> routing_table_ {};
   // The router's collection of network interfaces
   std::vector<std::shared_ptr<NetworkInterface>> interfaces_ {};
+  
 };
