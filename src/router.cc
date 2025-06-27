@@ -20,7 +20,19 @@ void Router::add_route( const uint32_t route_prefix,
        << static_cast<int>( prefix_length ) << " => " << ( next_hop.has_value() ? next_hop->ip() : "(direct)" )
        << " on interface " << interface_num << "\n";
 
-  debug( "unimplemented add_route() called" );
+  // Validate interface number
+  if (interface_num >= interfaces_.size()) {
+    throw std::runtime_error("Invalid interface number: " + std::to_string(interface_num));
+  }
+  
+  // Create and add the routing entry
+  RouteEntry entry;
+  entry.route_prefix = route_prefix;
+  entry.prefix_length = prefix_length;
+  entry.next_hop = next_hop;
+  entry.interface_num = interface_num;
+  
+  routing_table_.push_back(entry);
 }
 
 // Go through all the interfaces, and route every incoming datagram to its proper outgoing interface.

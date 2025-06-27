@@ -5,6 +5,14 @@
 
 #include <optional>
 
+// Routing table entry
+struct RouteEntry {
+  uint32_t route_prefix = 0;      // Network address
+  uint8_t prefix_length = 0;      // Subnet mask length
+  std::optional<Address> next_hop {}; // Next hop address (empty for direct)
+  size_t interface_num = 0;       // Interface index
+};
+
 // \brief A router that has multiple network interfaces and
 // performs longest-prefix-match routing between them.
 class Router
@@ -32,6 +40,10 @@ public:
   void route();
 
 private:
+
+  
+  // Routing table
+  std::vector<RouteEntry> routing_table_ {};
   // The router's collection of network interfaces
   std::vector<std::shared_ptr<NetworkInterface>> interfaces_ {};
 };
