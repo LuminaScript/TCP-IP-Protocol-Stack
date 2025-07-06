@@ -1,6 +1,8 @@
 ### TCP/IP network stack implementation
-
 _Reference: https://cs144.stanford.edu_
+This imp
+#### Network stacks architecture
+![Screenshot](https://github.com/TCP-IP-Protocol-Stack/image/01.png)
 
 To set up the build system: `cmake -S . -B build`
 
