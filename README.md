@@ -52,4 +52,6 @@ The system uses configurable parameters for various protocol aspects: [6](#0-5)
 Wireshark to measure real network traffic between server/client and bounce server
 <img width="732" height="109" alt="image" src="https://github.com/user-attachments/assets/911de29a-f577-4792-bc93-9b6eb3162e9e" />
 
+iperf3 testing between server and client directly
+<img width="1529" height="922" alt="image" src="https://github.com/user-attachments/assets/3d5c4d8a-6b39-4fa8-a08b-5a0def06a97b" />
 
