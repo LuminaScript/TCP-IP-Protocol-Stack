@@ -48,3 +48,8 @@ The system uses configurable parameters for various protocol aspects: [6](#0-5)
 - **Retransmission Timeout**: 1 second default with exponential backoff
 - **Maximum Retransmissions**: 8 attempts before connection failure
 
+# Testing
+Wireshark to measure real network traffic between server/client and bounce server
+<img width="732" height="109" alt="image" src="https://github.com/user-attachments/assets/911de29a-f577-4792-bc93-9b6eb3162e9e" />
+
+
